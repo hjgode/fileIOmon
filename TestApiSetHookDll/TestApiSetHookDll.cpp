@@ -36,7 +36,7 @@ extern "C" DWORD SetProcPermissions(DWORD dwPerms);
 
 // we are hooking CreateFileW, 0xF000AFDC is exception call to this
 // see name_wince_syscalls.idc
-#define FAULT_ADDR 0xF000AFDC
+#define WIN32_CreateFileW 0xF000AFDC
 //SH_FILESYS_APIS_RegOpenKeyExW
 #define SH_FILESYS_APIS_RegOpenKeyExW 0xf000afa4
 
@@ -124,7 +124,7 @@ HANDLE _CreateFileHook(
 	return H; 
 }
 
-BOOL hookMethod(DWORD dwMethodID){
+BOOL hookMethod(DWORD dwMethodID, PFNVOID newFunctionPointer){
 	BOOL bRet=FALSE;
 
 	FILE *F=fopen("\\log.txt","at");
@@ -134,7 +134,7 @@ BOOL hookMethod(DWORD dwMethodID){
     DWORD dwPerm = SetProcPermissions(0xFFFFFFFF);
 	CINFO **SystemAPISets= (CINFO **)KData.aInfo[KINX_APISETS];
 
-	//DWORD Tmp= (FIRST_METHOD - FAULT_ADDR)/APICALL_SCALE;  
+	//DWORD Tmp= (FIRST_METHOD - WIN32_CreateFileW)/APICALL_SCALE;  
 	DWORD Tmp= (FIRST_METHOD - dwMethodID)/APICALL_SCALE;  
 	DWORD ApiSet=(Tmp>>HANDLE_SHIFT)&HANDLE_MASK;
     DWORD Method=Tmp&METHOD_MASK;
@@ -189,7 +189,7 @@ BOOL hookMethod(DWORD dwMethodID){
 	//save old pointer to method
 	Old=SystemAPISets[ApiSet]->ppfnMethods[Method];
 	//replace method by our hooked method
-	SystemAPISets[ApiSet]->ppfnMethods[Method]=(PFNVOID)_CreateFileHook;
+	SystemAPISets[ApiSet]->ppfnMethods[Method]=(PFNVOID)newFunctionPointer;//_CreateFileHook;
 
 	fprintf(F,"Hooked!\n");	
 	fclose(F);
@@ -223,20 +223,20 @@ BOOL PerformHook(HMODULE t)
 	if(Hooked) 
 	{ 
 		FILE *F=fopen("\\log.txt","at");
-		fputs("Already hooked",F);
+		fputs("Already hooked\n",F);
 		fclose(F);
 		return TRUE;
 	}
 	Hooked=true;
 
-	//BOOL bRes = hookMethod(FAULT_ADDR);
+	//BOOL bRes = hookMethod(WIN32_CreateFileW);
 
 	
 	BOOL bMode = SetKMode(TRUE);
     DWORD dwPerm = SetProcPermissions(0xFFFFFFFF);
 	CINFO **SystemAPISets= (CINFO **)KData.aInfo[KINX_APISETS];
 
-	DWORD Tmp= (FIRST_METHOD-FAULT_ADDR)/APICALL_SCALE;  
+	DWORD Tmp= (FIRST_METHOD - WIN32_CreateFileW)/APICALL_SCALE;  
 	DWORD ApiSet=(Tmp>>HANDLE_SHIFT)&HANDLE_MASK;
     DWORD Method=Tmp&METHOD_MASK;
 
@@ -290,7 +290,7 @@ BOOL PerformHook(HMODULE t)
 	//save old pointer to method
 	Old=SystemAPISets[ApiSet]->ppfnMethods[Method];
 	//replace method by our hooked method
-	SystemAPISets[ApiSet]->ppfnMethods[Method]=(PFNVOID)_CreateFileHook;
+	SystemAPISets[ApiSet]->ppfnMethods[Method]=(PFNVOID) _CreateFileHook;
 
 	fprintf(F,"Hooked!\n");	
 	fclose(F);

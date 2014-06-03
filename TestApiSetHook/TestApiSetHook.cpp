@@ -45,6 +45,28 @@ extern "C" DWORD SetProcPermissions(DWORD dwPerms);
 
 TCHAR* APISETNAMES[] = { L"SH_WIN32", L"SH_CURTHREAD", L"SH_CURPROC", L"SH_KWIN32", L"HT_EVENT", L"HT_MUTEX", L"HT_APISET", L"HT_FILE", L"HT_FIND", L"HT_DBFILE", L"HT_DBFIND", L"HT_SOCKET", L"HT_INTERFACE", L"HT_SEMAPHORE", L"HT_FSMAP", L"HT_WNETENUM" }; 
 
+LPCTSTR getApiName(int i){
+	if(i<16)
+		return APISETNAMES[i];
+	return L"unknown";
+}
+
+TCHAR* DISPATCHTYPES[] = {
+	L"DISPATCH_KERNEL",//     0   /* dispatch directly in kernel */
+	L"DISPATCH_I_KERNEL",//   1   /* dispatch implicit handle in kernel */
+	L"DISPATCH_KERNEL_PSL",// 2   /* dispatch as thread in kernel */
+	L"DISPATCH_I_KPSL",//     3   /* implicit handle as kernel thread */
+	L"DISPATCH_PSL",//        4   /* dispatch as user mode PSL */
+	L"DISPATCH_I_PSL",//      5   /* implicit handle as user mode PSL */
+};
+
+LPCTSTR getDispType(int i){
+	if(i<6)
+		return DISPATCHTYPES[i];
+	else
+		return L"unknown";
+}
+
 #define FIRST_METHOD    0xF0010000
 #define APICALL_SCALE   4
 #define HANDLE_SHIFT 	8
@@ -61,15 +83,6 @@ HANDLE _CreateFileHook()
 	return INVALID_HANDLE_VALUE;
 }
 
-void nclog (const wchar_t *fmt, ...)
-{
-    va_list vl;
-    va_start(vl,fmt);
-	wchar_t bufW[1024]; // to bad CE hasn't got wvnsprintf
-	wvsprintf(bufW,fmt,vl);
-	DEBUGMSG(1, (bufW));
-}
-
 int _tmain(int argc, _TCHAR* argv[])
 {
 	BOOL bMode = SetKMode(TRUE);
@@ -78,16 +91,19 @@ int _tmain(int argc, _TCHAR* argv[])
 	CINFO **SystemAPISets= (CINFO **)KData.aInfo[KINX_APISETS];
 	for(int i=0; i<NUM_SYSTEM_SETS; i++)
 	{
-		nclog(L"SystemAPISets[%d]:\n",i);
-		nclog(L"API set: %s\n", APISETNAMES[i]);
+		DEBUGMSG(1, (L"SystemAPISets[%d]:\n",i));
+		DEBUGMSG(1, (L"API set: %s\n", getApiName(i)));
 		if(SystemAPISets[i]==0)
 		{
-			nclog(L"  NULL\n");
+			DEBUGMSG(1, (L"  NULL\n"));
 			continue;
 		}
-		nclog(L"  acName: %s\n",SystemAPISets[i]->acName);
-		nclog(L"  cMethods: %d\n",SystemAPISets[i]->cMethods);
-		nclog(L"\n");
+		DEBUGMSG(1, (L"  acName:      %S\n",SystemAPISets[i]->acName));	//use %S (capital S) as acName is char*
+		DEBUGMSG(1, (L"  cMethods:    %d\n",SystemAPISets[i]->cMethods));
+		DEBUGMSG(1, (L"  handle type: %i\n",SystemAPISets[i]->type));
+		DEBUGMSG(1, (L"  disp type:   %s\n",getDispType(SystemAPISets[i]->disp)));
+		
+		DEBUGMSG(1, (L"\n"));
 	}
 
 	DWORD Tmp= (FIRST_METHOD-FAULT_ADDR)/APICALL_SCALE;  
@@ -97,24 +113,24 @@ int _tmain(int argc, _TCHAR* argv[])
 	// validate
 	if(ApiSet>NUM_SYSTEM_SETS)
 	{
-		nclog(L"Invalid ApiSet\n");
+		DEBUGMSG(1, (L"Invalid ApiSet\n"));
 		return 0;
 	}
 	if(SystemAPISets[ApiSet]==0)
 	{
-		nclog(L"Invalid ApiSet\n");
+		DEBUGMSG(1, (L"Invalid ApiSet\n"));
 		return 0;
 	}
 	if(SystemAPISets[ApiSet]->cMethods<=Method)
 	{
-		nclog(L"Invalid method number\n");
+		DEBUGMSG(1, (L"Invalid method number\n"));
 		return 0;
 	}
 
 	// I support only filesystem and similar hooks that are processed inside filesys.exe
 	if(SystemAPISets[ApiSet]->pServer==0)
 	{
-		nclog(L"Calls with pServer==0 are not supported\n");
+		DEBUGMSG(1, (L"Calls with pServer==0 are not supported\n"));
 		return 0;
 	}
 
@@ -135,7 +151,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	void *Fn=GetProcAddress(Hm,L"PerformHook");
 	if(Hm==0 || Fn==0)
 	{
-		nclog(L"Unable to load library\n");
+		DEBUGMSG(1, (L"Unable to load library\n"));
 		return 0;
 	}
 	ci.hProc=Proc;
@@ -144,7 +160,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	PerformCallBack4(&ci);	// so we call function ourselves, fortunately DLLs are loaded at the same address in all processes
 	Sleep(3000);	
 
-	nclog(L"exit\n");
+	DEBUGMSG(1, (L"exit\n"));
 	MessageBox(GetForegroundWindow(),L"CreateFileW hooked!",L"Done",0);
 	FreeLibrary(Hm);
 	return 0;
